@@ -1778,6 +1778,14 @@ def run(args):
             row("Multiplayer", f"BeamMP not started ({e}); if this repeats, delete the BeamMP-Launcher folder in "
                                "%LOCALAPPDATA% (BeamNG.Earth downloads it again)")
             beammp = None
+        if beammp and not running:
+            # (this fork: BeamMP's join fixes put into the mod its launcher just installed, before the game loads it;
+            # bmppatch.py, only for the BeamMP version they were made for)
+            try:
+                import bmppatch
+                row("Multiplayer", bmppatch.apply(user_dir)[1])
+            except Exception as e:      # (never a reason not to start: the official BeamMP is used)
+                row("Multiplayer", f"BeamMP join fixes not applied ({e})")
         if args.no_game:
             say()
             say("Start BeamNG.drive and pick 'BeamNG.Earth' in Freeroam. Ctrl+C stops the server.")

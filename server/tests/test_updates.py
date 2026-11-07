@@ -125,8 +125,8 @@ class OpenPageTest(unittest.TestCase):
                     "https://github.com.evil.example/x", "https://discord.gg/tgf/../x", "https://github.com/" + "a" * 40):
             self.assertFalse(updates.openable(bad), bad)
 
-    def test_downloads_stay_on_upstream(self):
+    def test_downloads_stay_on_this_fork(self):
         import selfupdate
-        self.assertEqual(updates.REPO, "TecnaGamer/BeamNG.Earth")
+        self.assertEqual(updates.REPO, "Aaexy/BeamNG.Earth")
         self.assertEqual(selfupdate.API_URL, updates.LATEST_API)
-        self.assertEqual(selfupdate.ASSET_PREFIX, "https://github.com/TecnaGamer/BeamNG.Earth/releases/download/")
+        self.assertEqual(selfupdate.ASSET_PREFIX, "https://github.com/Aaexy/BeamNG.Earth/releases/download/")

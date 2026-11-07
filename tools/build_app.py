@@ -150,6 +150,8 @@ def pyinstaller(work, ico, onefile, ver=None, boot=None):
            "--hidden-import", "certifi", "--collect-data", "certifi",   # CA bundle fallback (launcher.ensure_ca_certs)
            "--hidden-import", "truststore",     # Windows: the native certificate store (netfetch.windows_ssl_context, PR #371)
            "--add-data", f"{os.path.join(ROOT, 'mod', 'beamng_earth')}{SEP}mod/beamng_earth",
+           "--hidden-import", "bmppatch",
+           "--add-data", f"{os.path.join(ROOT, 'beammp_patch')}{SEP}beammp_patch",     # (this fork: bmppatch.py)
            "--add-data", f"{os.path.join(ROOT, 'VERSION')}{SEP}.",
            "--add-data", f"{os.path.join(ROOT, 'LICENSE')}{SEP}.",
            "--add-data", f"{os.path.join(ROOT, 'CREDITS.md')}{SEP}.",

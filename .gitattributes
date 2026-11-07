@@ -1,2 +1,5 @@
 *.bat text eol=crlf
 *.sh text eol=lf
+
+# (this fork) BeamMP files put into BeamMP.zip byte for byte: never converted
+beammp_patch/** -text

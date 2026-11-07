@@ -22,7 +22,7 @@ import time
 
 import netfetch
 
-REPO = "TecnaGamer/BeamNG.Earth"
+REPO = "Aaexy/BeamNG.Earth"          # (this fork: updates come from the fork, which carries the BeamMP join fixes)
 LATEST_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 PAGE_URL = f"https://github.com/{REPO}/releases"      # the downloads (.exe / AppImage)
 # the folder with VERSION: above server/, or the packaged app's bundle (launcher.py frozen by PyInstaller, where
@@ -136,7 +136,8 @@ OPEN_PREFIX = f"https://github.com/{REPO}/"
 # ... and the settings page's About links (the game's openWebBrowser refuses every site outside its own domain filter:
 # "unable to open webpage due to domain filter", 2026-11-05): the project's Discord and Ko-fi, exactly, and a
 # contributor's GitHub profile (github.com/<login>, nothing after it)
-OPEN_EXACT = ("https://discord.gg/tgf", "https://ko-fi.com/tecnagamer", f"https://github.com/{REPO}")
+OPEN_EXACT = ("https://discord.gg/tgf", "https://ko-fi.com/tecnagamer", f"https://github.com/{REPO}",
+              "https://github.com/TecnaGamer/BeamNG.Earth")   # (this fork: the original project stays linked)
 _PROFILE = re.compile(r"https://github\.com/[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?")
 
 
