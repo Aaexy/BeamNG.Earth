@@ -1620,6 +1620,10 @@ def beammp_up(user_dir, build, args):
         else:
             say(f"  --beammp-launcher: no {bmplaunch.EXE} at {args.beammp_launcher}")
     exe = bmplaunch.find(dd)
+    if exe and IS_WIN and not getattr(args, "beammp_launcher", None) and not os.environ.get("BEAMMP_LAUNCHER"):
+        # (this fork: the faster launcher put in place of the player's, in its own folder so its mod cache is kept)
+        import install
+        exe = bmplaunch.use_fork_launcher(exe, f"BeamNG.Earth/{install.version()}", say=lambda m: say("  " + m))
     if exe and not IS_WIN and bmplaunch.rebuild_due(dd) and exe == os.path.join(dd, "beammp", bmplaunch.EXE):
         import install          # (the one built here was too old for BeamMP's mod: built again from BeamMP's source)
         exe = bmplaunch.build_linux(dd, f"BeamNG.Earth/{install.version()}", say=lambda m: say("  " + m)) or exe

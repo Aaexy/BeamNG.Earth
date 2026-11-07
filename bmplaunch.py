@@ -24,7 +24,12 @@ import time
 IS_WIN = os.name == "nt"
 CORE_PORT = 4444                # the BeamMP launcher's port for the game (its Launcher.cfg default)
 READY_S = 120                   # its mod update (a few MB) and start, at most this long
-RELEASES = "https://api.github.com/repos/BeamMP/BeamMP-Launcher/releases/latest"
+# (this fork) the launcher comes from the Aaexy/BeamMP-Launcher fork: BeamMP's launcher plus the faster sync of cached
+# mods (hardlinks + remembered hashes, BeamMP/BeamMP-Launcher#279). It updates itself to the official one when BeamMP
+# publishes a newer launcher.
+RELEASES = "https://api.github.com/repos/Aaexy/BeamMP-Launcher/releases/latest"
+FORK_MARKER = "BeamMP-Launcher.fork.json"     # beside the launcher: the fork release put there ({"tag", "sha256"})
+FORK_BACKUP = ".before-fork"                  # the launcher it replaced, kept once beside it (BeamMP-Launcher.exe<this>)
 # Linux: BeamMP's newest master commit whose Linux build passed (its GitHub Actions, readable without an account)
 PASSING_RUNS = ("https://api.github.com/repos/BeamMP/BeamMP-Launcher/actions/workflows/cmake-linux.yml/runs"
                 "?branch=master&event=push&status=success&per_page=1")
@@ -273,34 +278,93 @@ def parse_sha256(text):
     return None
 
 
-def download(data_dir, user_agent, say=print):
-    """Windows: the latest official BeamMP launcher into <data>/beammp, checked against its published SHA-256.
-    Returns its path, or None (no network, a bad checksum: nothing is kept)."""
+def latest_release(user_agent, say=print, timeout=30):
+    """(exe url, sha256 url, tag) of the launcher's latest release (RELEASES), or None."""
     try:
-        release = json.loads(_get(RELEASES, user_agent, 30).decode("utf-8"))
-        picked = pick_assets(release)
-        if not picked:
-            say("BeamMP: no launcher download in its latest release")
-            return None
-        exe_url, sha_url, version = picked
+        picked = pick_assets(json.loads(_get(RELEASES, user_agent, timeout).decode("utf-8")))
+    except Exception as e:                  # (no network, GitHub's rate limit...)
+        say(f"BeamMP: the launcher's release could not be read ({e})")
+        return None
+    if not picked:
+        say("BeamMP: no launcher download in its latest release")
+    return picked
+
+
+def fetch_verified(picked, user_agent, say=print):
+    """The launcher's bytes, checked against its published SHA-256, or None."""
+    exe_url, sha_url, version = picked
+    try:
         want = parse_sha256(_get(sha_url, user_agent, 30).decode("utf-8", "replace"))
         blob = _get(exe_url, user_agent, 300)
-    except Exception as e:                  # (no network, GitHub's rate limit...)
+    except Exception as e:
         say(f"BeamMP: the download failed ({e})")
         return None
     got = hashlib.sha256(blob).hexdigest()
     if not want or got != want:
-        say(f"BeamMP: the download's checksum does not match the one BeamMP published ({got} != {want}); not used")
+        say(f"BeamMP: the download's checksum does not match the published one ({got} != {want}); not used")
         return None
-    dest_dir = os.path.join(data_dir, "beammp")
-    os.makedirs(dest_dir, exist_ok=True)
-    dest = os.path.join(dest_dir, EXE)
+    return blob
+
+
+def _write(dest, blob):
     tmp = dest + ".part"
     with open(tmp, "wb") as f:
         f.write(blob)
     os.replace(tmp, dest)
-    say(f"BeamMP: launcher {version} installed ({max(1, len(blob) // 1048576)} MB, checksum verified)")
+
+
+def _write_marker(exe, tag, blob):
+    with open(os.path.join(os.path.dirname(exe), FORK_MARKER), "w", encoding="utf-8") as f:
+        json.dump({"tag": tag, "sha256": hashlib.sha256(blob).hexdigest()}, f)
+
+
+def fork_marker(exe):
+    try:
+        with open(os.path.join(os.path.dirname(exe), FORK_MARKER), encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def download(data_dir, user_agent, say=print):
+    """Windows: the latest launcher (this fork's, RELEASES) into <data>/beammp, checked against its published SHA-256.
+    Returns its path, or None (no network, a bad checksum: nothing is kept)."""
+    picked = latest_release(user_agent, say)
+    blob = picked and fetch_verified(picked, user_agent, say)
+    if not blob:
+        return None
+    dest_dir = os.path.join(data_dir, "beammp")
+    os.makedirs(dest_dir, exist_ok=True)
+    dest = os.path.join(dest_dir, EXE)
+    _write(dest, blob)
+    _write_marker(dest, picked[2], blob)
+    say(f"BeamMP: launcher {picked[2]} installed ({max(1, len(blob) // 1048576)} MB, checksum verified)")
     return dest
+
+
+def use_fork_launcher(exe, user_agent, say=print):
+    """(this fork, Windows) The launcher at exe replaced in place by this fork's latest release, so the player's
+    launcher folder, with its cache of the servers' mods and its settings, is kept. The launcher it replaces is kept
+    once as <exe>.before-fork. Nothing is done when that release is already there (a launcher that updated itself to a
+    newer official one since stays as it is) or cannot be fetched. Returns exe."""
+    picked = latest_release(user_agent, say, timeout=15)
+    if not picked or fork_marker(exe).get("tag") == picked[2]:
+        return exe
+    blob = fetch_verified(picked, user_agent, say)
+    if not blob:
+        return exe
+    try:
+        backup = exe + FORK_BACKUP
+        if os.path.isfile(exe) and not os.path.exists(backup) and not fork_marker(exe):
+            shutil.copy2(exe, backup)
+        _write(exe, blob)
+        _write_marker(exe, picked[2], blob)
+    except OSError as e:                    # (in use, read-only folder: the launcher that is there is used)
+        say(f"BeamMP: the faster launcher could not be put in place ({e}); the current one is used")
+        return exe
+    say(f"BeamMP: faster launcher {picked[2]} put in place of {exe} (the previous one kept as {EXE}{FORK_BACKUP})")
+    return exe
 
 
 def game_user_path(user_dir):

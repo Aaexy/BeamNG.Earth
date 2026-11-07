@@ -66,6 +66,74 @@ class Download(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(bmplaunch, "_get", boom):
             self.assertIsNone(bmplaunch.download(d, "BeamNG.Earth/test", say=lambda m: None))
 
+    def test_downloads_come_from_this_fork(self):
+        self.assertEqual(bmplaunch.RELEASES, "https://api.github.com/repos/Aaexy/BeamMP-Launcher/releases/latest")
+
+
+class ForkLauncher(unittest.TestCase):
+    """(this fork) The faster launcher put in place of the player's, in its own folder (its mod cache kept)."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = os.path.join(self.tmp.name, "BeamMP-Launcher")
+        os.makedirs(os.path.join(self.dir, "Resources"))
+        self.exe = os.path.join(self.dir, bmplaunch.EXE)
+        Path(self.exe).write_bytes(b"MZ official")
+        Path(self.dir, "Resources", "mod.zip").write_bytes(b"cached mod")
+        self.calls = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def fake_get(self, blob, published, tag="v2.8.1-fastsync.1"):
+        release = dict(RELEASE, tag_name=tag)
+
+        def get(url, ua, timeout=60):
+            self.calls.append(url)
+            if url == bmplaunch.RELEASES:
+                return json.dumps(release).encode()
+            if url.endswith(".sha256"):
+                return (published + "  BeamMP-Launcher.exe").encode()
+            return blob
+        return get
+
+    def use(self, get):
+        with mock.patch.object(bmplaunch, "_get", get):
+            return bmplaunch.use_fork_launcher(self.exe, "BeamNG.Earth/test", say=lambda m: None)
+
+    def test_replaced_once_with_a_backup_and_the_cache_kept(self):
+        blob = b"MZ fork"
+        get = self.fake_get(blob, hashlib.sha256(blob).hexdigest())
+        self.assertEqual(self.use(get), self.exe)
+        self.assertEqual(Path(self.exe).read_bytes(), blob)
+        self.assertEqual(Path(self.exe + bmplaunch.FORK_BACKUP).read_bytes(), b"MZ official")
+        self.assertEqual(Path(self.dir, "Resources", "mod.zip").read_bytes(), b"cached mod")
+        self.assertEqual(bmplaunch.fork_marker(self.exe)["tag"], "v2.8.1-fastsync.1")
+        self.calls.clear()
+        self.use(get)                                       # the same release again: only the release is read
+        self.assertEqual(self.calls, [bmplaunch.RELEASES])
+
+    def test_a_launcher_that_updated_itself_stays(self):
+        blob = b"MZ fork"
+        get = self.fake_get(blob, hashlib.sha256(blob).hexdigest())
+        self.use(get)
+        Path(self.exe).write_bytes(b"MZ official 2.8.2")    # (its own update to a newer official launcher)
+        self.use(get)
+        self.assertEqual(Path(self.exe).read_bytes(), b"MZ official 2.8.2")
+        newer = b"MZ fork 2"                                # a newer fork release replaces it, no second backup
+        self.use(self.fake_get(newer, hashlib.sha256(newer).hexdigest(), tag="v2.8.2-fastsync.1"))
+        self.assertEqual(Path(self.exe).read_bytes(), newer)
+        self.assertEqual(Path(self.exe + bmplaunch.FORK_BACKUP).read_bytes(), b"MZ official")
+
+    def test_bad_checksum_or_no_network_leaves_it(self):
+        self.use(self.fake_get(b"MZ fork", "0" * 64))
+        self.assertEqual(Path(self.exe).read_bytes(), b"MZ official")
+        self.assertFalse(os.path.exists(self.exe + bmplaunch.FORK_BACKUP))
+
+        def boom(*a, **k):
+            raise OSError("offline")
+        self.assertEqual(self.use(boom), self.exe)
+        self.assertEqual(Path(self.exe).read_bytes(), b"MZ official")
+
 
 class LinuxBuild(unittest.TestCase):
     """Linux: BeamMP's launcher built here from its source, at its newest passing master commit, in a container."""
