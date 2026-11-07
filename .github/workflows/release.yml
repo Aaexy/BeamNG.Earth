@@ -213,5 +213,7 @@ jobs:
           Steam must be running. Closing the game stops the server. See the README for details.
           EOF
           { echo; echo "---"; echo; python3 tools/release_notes.py --launch-only "$v"; } >> notes.md
+          # (this fork: said first in the notes)
+          { echo "> **This is a fork** of [TecnaGamer/BeamNG.Earth](https://github.com/TecnaGamer/BeamNG.Earth) with BeamMP's join fixes applied to the official BeamMP mod. See [FORK.md](https://github.com/${{ github.repository }}/blob/main/FORK.md)."; echo; cat notes.md; } > notes.fork.md && mv notes.fork.md notes.md
           gh release create "v$v" out/linux/* out/windows/* dist/BeamNG.Earth-BeamMP-Server-*.zip dist/BeamNG.Earth-Host-*.zip dist/BeamMP-Server-*-corresponding-source.zip --target "$GITHUB_SHA" --title "BeamNG.Earth $v" \
             --notes-file notes.md --generate-notes $pre
